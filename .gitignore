@@ -6,3 +6,4 @@ results/*
 *pickle
 *json
 *.sh
+**/wandb
