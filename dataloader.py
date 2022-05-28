@@ -64,8 +64,8 @@ class Dataloader:
             print('#4, self.taskSelect:', self.taskSelect)
 
         # number of single and pair wise tasks
-        self.numPairTasks = 6
-        self.numSingleTasks = 3
+        self.numPairTasks = len(self.taskDefn)
+        # self.numSingleTasks = 1
 
         # create a vocab map for field values
         attrVals = functools.reduce(lambda x, y: x+y,
