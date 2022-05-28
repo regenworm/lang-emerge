@@ -19,7 +19,9 @@ for combi in combis:
         combinations.append(list(combi))
 combinations = random.sample(combinations, n_combis)
 train, test = train_test_split(combinations, test_size=0.1)
-out["numInst"] = {"train": n_combis*0.9, "test": n_combis*0.1}
+train_inst = int(n_combis*0.9)
+test_inst = n_combis - train_inst
+out["numInst"] = {"train": train_inst, "test": test_inst}
 out["split"] = {"train": train, "test": test}
 out["taskDefn"] = [[0, 1, 2, 3, 4, 5, 6, 7, 8]]
 with open("data/who_is_it.json", 'w') as outfile:
