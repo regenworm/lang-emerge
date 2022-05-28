@@ -72,12 +72,16 @@ class Dataloader:
                                     [self.props[ii] for ii in self.attributes])
         self.attrVocab = {value: ii for ii, value in enumerate(attrVals)}
         self.invAttrVocab = {index: attr for attr, index in self.attrVocab.items()}
+        if VERBOSE:
+            print('#5, attrVals:', attrVals)
 
         # get encoding for attribute pairs
         self.attrPair = itertools.product(attrVals, repeat=2)
         self.attrPairVocab = {value:ii for ii, value in enumerate(self.attrPair)}
         self.invAttrPairVocab = {index:value for value, index \
                                                 in self.attrPairVocab.items()}
+        if VERBOSE:
+            print('#6, first 5 attrPairVocab keys and indices:', list(self.attrPairVocab.items())[:5])
 
         # Separate data loading for test/train
         self.data = {}
@@ -225,14 +229,16 @@ class Dataloader:
         attrPairInv = {ii:value for value, ii in self.attrPairVocab.items()}
         for ii in range(numImgs):
             # conversation
+            task_idx = tasks[ii]
+            task_len = self.taskSelect[task_idx].size(0)
             conv = {}
             conv['image'] = [self.invAttrVocab[jj.item()] for jj in images[ii]]
             conv['gt'] = [self.invAttrVocab[labels[ii, jj].item()]
-                          for jj in range(2)]
+                          for jj in range(task_len)]
             conv['task'] = [self.attributes[jj.item()]
                                         for jj in self.taskSelect[tasks[ii]]]
             conv['pred'] = [self.invAttrVocab[preds[jj].data[ii].item()]
-                                                for jj in range(2)]
+                                                for jj in range(task_len)]
             conv['chat'] = [qVocab[talk[0].data[ii]],
                             aVocab[talk[1].data[ii]]]
             if len(talk) > 3:
