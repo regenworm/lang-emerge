@@ -27,7 +27,7 @@ data = Dataloader(options)
 numInst = data.getInstCount()
 useWandB = True
 if useWandB:
-    wandb.init(project="lang-emerge", entity="nlp-2-a")
+    wandb.init(project="lang-emerge", entity="nlp-2-a", tags=['train'])
 
 params = data.params
 # append options from options to params
