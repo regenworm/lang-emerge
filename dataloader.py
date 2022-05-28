@@ -6,6 +6,8 @@ import torch
 import functools
 import itertools, pdb, json, random
 
+VERBOSE=False
+
 class Dataloader:
 
     # initialize
@@ -22,16 +24,31 @@ class Dataloader:
         self.loadDataset(params['dataset'])
         ####################### Create attributes #########################
         numVals = {attr:len(vals) for attr, vals in self.props.items()}
+
+        # all possible attribute values
+        # i.e. for a face, vocab would be all possible facial features
         self.attrValVocab = functools.reduce(lambda x, y: x + y,
             [self.props[ii] for ii in self.attributes])
         self.numTasks = len(self.taskDefn)
+        if VERBOSE:
+            print('#0.1, numTasks', self.numTasks)
+            print('#0.2, taskDefn', self.taskDefn)
 
         # input vocab for answerer
         # inVocab and outVocab same for questioner
         taskVocab = ['<T%d>' % ii for ii in range(self.numTasks)]
+        
+        if VERBOSE:
+            print('#1, taskVocab:', taskVocab)
         # A, Q have different vocabs
+        # from a to a + qOutVocab (in terms of chars)
         qOutVocab = [chr(ii + 97) for ii in range(params['qOutVocab'])]
+        if VERBOSE:
+            print('#2, qOutVocab:', qOutVocab)
+        # from A to A + aOutVocab (in terms of chars)
         aOutVocab = [chr(ii + 65) for ii in range(params['aOutVocab'])]
+        if VERBOSE:
+            print('#3, aOutVocab:', aOutVocab)
         aInVocab =  qOutVocab + aOutVocab
         qInVocab = aOutVocab + qOutVocab + taskVocab
 
@@ -43,6 +60,8 @@ class Dataloader:
 
         self.numAttrs = len(self.attributes)
         self.taskSelect = torch.LongTensor(self.taskDefn)
+        if VERBOSE:
+            print('#4, self.taskSelect:', self.taskSelect)
 
         # number of single and pair wise tasks
         self.numPairTasks = 6
@@ -248,7 +267,13 @@ class Dataloader:
 ###############################################################################
 # main to dump the dataset
 if __name__ == '__main__':
-    options = {}
-    # create dataloader
+    # test old dataset
+    options = {'dataset': 'data/toy64_split_0.8.json', 'qOutVocab': 3, 'aOutVocab': 4, 'useGPU': False}
     data = Dataloader(options)
-    data.saveDataset('data/toy64_split_0.8.json', 0.8)
+    print('#old:\n', data)
+
+    # test new dataset
+    options = {'dataset': 'data/who_is_it.json', 'qOutVocab': 3, 'aOutVocab': 4, 'useGPU': False}
+    data = Dataloader(options)
+    print('#new:\n', data)
+    # data.saveDataset('data/toy64_split_0.8.json', 0.8)
