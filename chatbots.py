@@ -174,7 +174,7 @@ class Questioner(ChatBot):
     def predict(self, tasks, numTokens):
         guessTokens = []
         guessDistr = []
-
+        
         for _ in range(numTokens):
             # explicit task dependence
             taskEmbeds = self.embedTask(tasks)
@@ -262,7 +262,9 @@ class Team:
         self.qBot.listen(aBotReply)
 
         # predict the image attributes, compute reward
-        self.guessToken, self.guessDistr = self.qBot.predict(tasks, 2)
+        # task_sizes = [len(self.taskSelect[t]) for t in tasks ]
+        task_size = len(self.taskSelect[tasks[0]])
+        self.guessToken, self.guessDistr = self.qBot.predict(tasks, task_size)
 
         return self.guessToken, self.guessDistr, talk
 
