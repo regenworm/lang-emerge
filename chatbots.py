@@ -7,6 +7,8 @@ import torch.autograd as autograd
 import sys
 from utilities import initializeWeights
 
+VERBOSE = False
+
 #---------------------------------------------------------------------------
 # Parent class for both q and a bots
 class ChatBot(nn.Module):
@@ -262,14 +264,35 @@ class Team:
         self.qBot.listen(aBotReply)
 
         # predict the image attributes, compute reward
+        # # get max task size, and predict for all batch examples
+        # max_task_size = max([len(self.taskSelect[t]) for t in tasks.unique()])
         self.guessToken, self.guessDistr = self.qBot.predict(tasks, 2)
 
         return self.guessToken, self.guessDistr, talk
 
     # backward pass
     def backward(self, optimizer, gtLabels, epoch, baseline=None):
+        # gtLabels: (batch x task_size)
+        # task_sizes: (batch)
         # compute reward
         self.reward.fill_(self.rlNegReward)
+
+        # # all attributes need to match
+        # # guessToken: (task_size x batch)
+        # # matches: (task_size x batch)
+        # guessToken = self.guessToken
+        # matches = guessToken.data == gtLabels.T.long()
+
+        # # # image_preds_perfect: (batch)
+        # # image_preds_perfect = []
+        # # for batch_idx in range(matches.size(1)):
+        # #     current_image = matches[:, batch_idx]
+        # #     current_task_size = task_sizes[batch_idx]
+        # #     perfect_pred = current_image[:current_task_size].sum() == current_task_size
+        # #     image_preds_perfect.append(perfect_pred)
+
+        # # # # self.reward: (batch)
+        # # # self.reward[image_preds_perfect] = self.rlScale
 
         # both attributes need to match
         firstMatch = self.guessToken[0].data == gtLabels[:, 0]
