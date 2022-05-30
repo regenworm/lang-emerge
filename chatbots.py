@@ -185,7 +185,7 @@ class Questioner(ChatBot):
             guessDistr.append(distr)
 
         # return prediction
-        return guessTokens, guessDistr
+        return torch.stack(guessTokens), guessDistr
 
     # Embedding the task
     def embedTask(self, tasks): return self.inNet(tasks + self.taskOffset)
