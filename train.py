@@ -28,7 +28,7 @@ numInst = data.getInstCount()
 useWandB = False
 VERBOSE = True
 if useWandB:
-    wandb.init(project="lang-emerge", entity="nlp-2-a", tags=['train', 'baseline'])
+    wandb.init(project="lang-emerge", entity="nlp-2-a", tags=['train', 'baseline', 'test_variable_task'])
 
 params = data.params
 # append options from options to params
@@ -123,7 +123,7 @@ for iterId in range(params['numEpochs'] * numIterPerEpoch):
         accuracy[dtype] = 100*torch.sum(matches[dtype])\
             / float(matches[dtype].size(0))
         # sum over task dimension, and take mean over batch
-        accuracy['attr_' + dtype] = sum(match_iter).float().mean()*100
+        accuracy['attr_' + dtype] = sum(match_iter).float().sum() / (len(match_iter) * len(perfect_matches))*100
 
     # switch to train
     team.train()
