@@ -25,7 +25,7 @@ options = options.read()
 # ------------------------------------------------------------------------
 data = Dataloader(options)
 numInst = data.getInstCount()
-useWandB = False
+useWandB = True
 VERBOSE = True
 if useWandB:
     wandb.init(project="lang-emerge", entity="nlp-2-a")
@@ -90,35 +90,32 @@ for iterId in range(params['numEpochs'] * numIterPerEpoch):
 
     for dtype in ['train', 'test']:
         # get the entire batch
+        # img: (batch x num_attrs) -> value for each attribute of image
+        # task: (batch) -> idx of task in taskselect
+        # labels: (batch x task_size) -> value for each attribute to be predicted
         img, task, labels = data.getCompleteData(dtype)
+        task_sizes = torch.Tensor([len(data.taskSelect[task[batch_idx]]) for batch_idx in range(img.size(0))]).int()
+
         # evaluate on the train dataset, using greedy policy
-        guess, _, _ = team.forward(Variable(img), Variable(task))
+        # guess: (task_size x batch) -> predicted values for task
+        # guess_dist: (task_size x batch x 26?) -> ????
+        # talk: (num_agents * rounds x batch) -> Messages sent between agents
+        guess, guess_dist, talk = team.forward(Variable(img), Variable(task))
+
         # compute accuracy for color, shape, and both
         firstMatch = guess[0].data == labels[:, 0].long()
         secondMatch = guess[1].data == labels[:, 1].long()
         matches[dtype] = firstMatch & secondMatch
         accuracy[dtype] = 100*torch.sum(matches[dtype])\
             / float(matches[dtype].size(0))
-        # # get the entire batch
-        # # images: (batch x num_attrs) -> value for each attribute of image
-        # # tasks: (batch) -> idx of task in taskselect
-        # # labels: (batch x task_size) -> value for each attribute to be predicted
-        # images, tasks, labels = data.getCompleteData(dtype)
-        # task_sizes = torch.Tensor([len(data.taskSelect[tasks[batch_idx]]) for batch_idx in range(images.size(0))]).int()
 
-
-        # # evaluate on the train dataset, using greedy policy
-        # # preds: (task_size x batch) -> predicted values for task
-        # # guess_dist: (task_size x batch x 26?) -> ????
-        # # talk: (num_agents * rounds x batch) -> Messages sent between agents
-        # preds, guess_dist, talk = team.forward(Variable(images), Variable(tasks), True)
         
-        # # compute accuracy for all attributes in entire batch
-        # # attr_matches: (task_size x batch )
-        # # attr_correct/attr_accuracy: scalar
-        # attr_matches = preds.data == labels.T.long()
-        # attr_correct = attr_matches.sum()
-        # attr_accuracy = attr_correct / task_sizes.sum()
+        # compute accuracy for all attributes in entire batch
+        # attr_matches: (task_size x batch )
+        # attr_correct/attr_accuracy: scalar
+        attr_matches = guess.data == labels.T.long()
+        attr_correct = attr_matches.sum()
+        attr_accuracy = attr_correct / task_sizes.sum()
 
         # # for each image/row in attr_matches, check if perfect 
         # # (i.e. all attrs correct)
