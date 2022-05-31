@@ -265,8 +265,8 @@ class Team:
 
         # predict the image attributes, compute reward
         # # get max task size, and predict for all batch examples
-        # max_task_size = max([len(self.taskSelect[t]) for t in tasks.unique()])
-        self.guessToken, self.guessDistr = self.qBot.predict(tasks, 2)
+        max_task_size = max([len(self.taskSelect[t]) for t in tasks.unique()])
+        self.guessToken, self.guessDistr = self.qBot.predict(tasks, max_task_size)
 
         return self.guessToken, self.guessDistr, talk
 
@@ -277,27 +277,16 @@ class Team:
         # compute reward
         self.reward.fill_(self.rlNegReward)
 
-        # # all attributes need to match
-        # # guessToken: (task_size x batch)
-        # # matches: (task_size x batch)
-        # guessToken = self.guessToken
-        # matches = guessToken.data == gtLabels.T.long()
-
-        # # # image_preds_perfect: (batch)
-        # # image_preds_perfect = []
-        # # for batch_idx in range(matches.size(1)):
-        # #     current_image = matches[:, batch_idx]
-        # #     current_task_size = task_sizes[batch_idx]
-        # #     perfect_pred = current_image[:current_task_size].sum() == current_task_size
-        # #     image_preds_perfect.append(perfect_pred)
-
-        # # # # self.reward: (batch)
-        # # # self.reward[image_preds_perfect] = self.rlScale
-
         # both attributes need to match
-        firstMatch = self.guessToken[0].data == gtLabels[:, 0]
-        secondMatch = self.guessToken[1].data == gtLabels[:, 1]
-        self.reward[firstMatch & secondMatch] = self.rlScale
+        match_iter = []
+        for current_task in range(self.guessToken.size(0)):
+            m = self.guessToken[current_task].data == gtLabels[:, current_task]
+            match_iter.append(m)
+        # perfect_matches: (batch)
+        perfect_matches = [match_iter[idx] & match_iter[idx+1] for idx in range(len(match_iter)-1)]
+        # firstMatch = self.guessToken[0].data == gtLabels[:, 0]
+        # secondMatch = self.guessToken[1].data == gtLabels[:, 1]
+        self.reward[perfect_matches[-1]] = self.rlScale
 
         # reinforce all actions for qBot, aBot
         self.qBot.reinforce(self.reward)
