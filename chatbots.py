@@ -286,7 +286,7 @@ class Team:
         perfect_matches = [match_iter[idx] & match_iter[idx+1] for idx in range(len(match_iter)-1)]
         firstMatch = self.guessToken[0].data == gtLabels[:, 0]
         secondMatch = self.guessToken[1].data == gtLabels[:, 1]
-        same = ((firstMatch & secondMatch) == perfect_matches[-1]).all()
+        same = ((firstMatch & secondMatch) == perfect_matches[0]).all()
         if not same:
             print('booo!')
         self.reward[perfect_matches[-1]] = self.rlScale
