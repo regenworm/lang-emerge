@@ -25,10 +25,10 @@ options = options.read()
 # ------------------------------------------------------------------------
 data = Dataloader(options)
 numInst = data.getInstCount()
-useWandB = True
+useWandB = False
 VERBOSE = True
 if useWandB:
-    wandb.init(project="lang-emerge", entity="nlp-2-a")
+    wandb.init(project="lang-emerge", entity="nlp-2-a", tags=['train', 'baseline'])
 
 params = data.params
 # append options from options to params
@@ -103,51 +103,30 @@ for iterId in range(params['numEpochs'] * numIterPerEpoch):
         guess, guess_dist, talk = team.forward(Variable(img), Variable(task))
 
         # compute accuracy for color, shape, and both
-        firstMatch = guess[0].data == labels[:, 0].long()
-        secondMatch = guess[1].data == labels[:, 1].long()
-        matches[dtype] = firstMatch & secondMatch
+        # match_iter: (task_size x batch)
+        match_iter = []
+        for current_task in range(guess.size(0)):
+            m = guess[current_task].data == labels[:, current_task]
+            match_iter.append(m)
+        # perfect_matches: (batch)
+        perfect_matches = [match_iter[idx] & match_iter[idx+1] for idx in range(len(match_iter)-1)]
+
+        if VERBOSE:
+            # check if results are same as method used for hardcoded 2 tasks
+            firstMatch = guess[0].data == labels[:, 0].long()
+            secondMatch = guess[1].data == labels[:, 1].long()
+            same = ((firstMatch & secondMatch) == perfect_matches[0]).all()
+            if not same:
+                print('NOT SAME!', same)
+
+        matches[dtype] = perfect_matches[-1]
         accuracy[dtype] = 100*torch.sum(matches[dtype])\
             / float(matches[dtype].size(0))
-
-        
-        # compute accuracy for all attributes in entire batch
-        # attr_matches: (task_size x batch )
-        # attr_correct/attr_accuracy: scalar
-        attr_matches = guess.data == labels.T.long()
-        attr_correct = attr_matches.sum()
-        attr_accuracy = attr_correct / task_sizes.sum()
-
-        # # for each image/row in attr_matches, check if perfect 
-        # # (i.e. all attrs correct)
-        # rows_correct = []
-        # for batch_idx in range(images.size(0)):
-        #     # get current task size and image
-        #     # current_task_size: scalar
-        #     # current_attr_matches: (max_task_size)
-        #     current_task_size = task_sizes[batch_idx]
-        #     current_attr_matches = attr_matches[:, batch_idx]
-
-        #     # only count predictions for current task
-        #     # current_attr_matches: scalar
-        #     current_attr_matches = attr_matches[:current_task_size].sum()
-        #     # print(current_attr_matches, type(current_attr_matches))
-        #     perfect_attr_predictions = current_attr_matches.long().equal( current_task_size.long())
-        #     rows_correct.append(perfect_attr_predictions)
-
-        # # rows_correct: (batch)
-        # rows_correct = torch.Tensor(rows_correct)
-        # # rows_accuracy: ratio of perfect image predictions to total images
-        # rows_accuracy = sum(rows_correct) / batch_size
-        # matches[dtype] = rows_correct
-        # accuracy[dtype] = rows_accuracy
-        # accuracy['attr_' + dtype] = attr_accuracy
+        # sum over task dimension, and take mean over batch
+        accuracy['attr_' + dtype] = sum(match_iter).float().mean()*100
 
     # switch to train
     team.train()
-
-    # break if train accuracy reaches 100%
-    if accuracy['train'] == 100:
-        break
 
     # save for every 5k epochs
     # if iterId > 0 and iterId % (10000*numIterPerEpoch) == 0:
@@ -165,15 +144,22 @@ for iterId in range(params['numEpochs'] * numIterPerEpoch):
             'epoch': epoch,
             'totalReward': team.totalReward,
             'trainAccuracy': accuracy['train'],
-            'testAccuracy': accuracy['test']
-            # 'trainAttrAccuracy': accuracy['attr_train'],
-            # 'testAttrAccuracy': accuracy['attr_test']
+            'testAccuracy': accuracy['test'],
+            'trainAttrAccuracy': accuracy['attr_train'],
+            'testAttrAccuracy': accuracy['attr_test']
         })
     print('[%s][Iter: %d][Ep: %.2f][R: %.4f][Tr: %.2f Te: %.2f][AttrTr: %.2f AttrTe: %.2f]' %
           (time, iterId, epoch, team.totalReward,
            accuracy['train'], accuracy['test'],
-           accuracy['train'], accuracy['test']))
-        #    accuracy['attr_train'], accuracy['attr_test']))
+        #    accuracy['train'], accuracy['test']))
+           accuracy['attr_train'], accuracy['attr_test']))
+
+    # break if train accuracy reaches 100%
+    if accuracy['train'] == 100:
+        break
+
+    if accuracy['test'] > 95:
+        break
 # ------------------------------------------------------------------------
 # save final model with a time stamp
 timeStamp = strftime("%a-%d-%b-%Y-%X", gmtime())
