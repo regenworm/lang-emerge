@@ -6,6 +6,8 @@ import torch
 import functools
 import itertools, pdb, json, random
 
+VERBOSE=False
+
 class Dataloader:
 
     # initialize
@@ -22,16 +24,31 @@ class Dataloader:
         self.loadDataset(params['dataset'])
         ####################### Create attributes #########################
         numVals = {attr:len(vals) for attr, vals in self.props.items()}
+
+        # all possible attribute values
+        # i.e. for a face, vocab would be all possible facial features
         self.attrValVocab = functools.reduce(lambda x, y: x + y,
             [self.props[ii] for ii in self.attributes])
         self.numTasks = len(self.taskDefn)
+        if VERBOSE:
+            print('#0.1, numTasks', self.numTasks)
+            print('#0.2, taskDefn', self.taskDefn)
 
         # input vocab for answerer
         # inVocab and outVocab same for questioner
         taskVocab = ['<T%d>' % ii for ii in range(self.numTasks)]
+        
+        if VERBOSE:
+            print('#1, taskVocab:', taskVocab)
         # A, Q have different vocabs
+        # from a to a + qOutVocab (in terms of chars)
         qOutVocab = [chr(ii + 97) for ii in range(params['qOutVocab'])]
+        if VERBOSE:
+            print('#2, qOutVocab:', qOutVocab)
+        # from A to A + aOutVocab (in terms of chars)
         aOutVocab = [chr(ii + 65) for ii in range(params['aOutVocab'])]
+        if VERBOSE:
+            print('#3, aOutVocab:', aOutVocab)
         aInVocab =  qOutVocab + aOutVocab
         qInVocab = aOutVocab + qOutVocab + taskVocab
 
@@ -43,22 +60,28 @@ class Dataloader:
 
         self.numAttrs = len(self.attributes)
         self.taskSelect = torch.LongTensor(self.taskDefn)
+        if VERBOSE:
+            print('#4, self.taskSelect:', self.taskSelect)
 
         # number of single and pair wise tasks
-        self.numPairTasks = 6
-        self.numSingleTasks = 3
+        self.numPairTasks = len(self.taskDefn)
+        # self.numSingleTasks = 1
 
         # create a vocab map for field values
         attrVals = functools.reduce(lambda x, y: x+y,
                                     [self.props[ii] for ii in self.attributes])
         self.attrVocab = {value: ii for ii, value in enumerate(attrVals)}
         self.invAttrVocab = {index: attr for attr, index in self.attrVocab.items()}
+        if VERBOSE:
+            print('#5, attrVals:', attrVals)
 
         # get encoding for attribute pairs
         self.attrPair = itertools.product(attrVals, repeat=2)
         self.attrPairVocab = {value:ii for ii, value in enumerate(self.attrPair)}
         self.invAttrPairVocab = {index:value for value, index \
                                                 in self.attrPairVocab.items()}
+        if VERBOSE:
+            print('#6, first 5 attrPairVocab keys and indices:', list(self.attrPairVocab.items())[:5])
 
         # Separate data loading for test/train
         self.data = {}
@@ -206,14 +229,16 @@ class Dataloader:
         attrPairInv = {ii:value for value, ii in self.attrPairVocab.items()}
         for ii in range(numImgs):
             # conversation
+            task_idx = tasks[ii]
+            task_len = self.taskSelect[task_idx].size(0)
             conv = {}
             conv['image'] = [self.invAttrVocab[jj.item()] for jj in images[ii]]
             conv['gt'] = [self.invAttrVocab[labels[ii, jj].item()]
-                          for jj in range(2)]
+                          for jj in range(task_len)]
             conv['task'] = [self.attributes[jj.item()]
                                         for jj in self.taskSelect[tasks[ii]]]
             conv['pred'] = [self.invAttrVocab[preds[jj].data[ii].item()]
-                                                for jj in range(2)]
+                                                for jj in range(task_len)]
             conv['chat'] = [qVocab[talk[0].data[ii]],
                             aVocab[talk[1].data[ii]]]
             if len(talk) > 3:
@@ -248,7 +273,13 @@ class Dataloader:
 ###############################################################################
 # main to dump the dataset
 if __name__ == '__main__':
-    options = {}
-    # create dataloader
+    # test old dataset
+    options = {'dataset': 'data/toy64_split_0.8.json', 'qOutVocab': 3, 'aOutVocab': 4, 'useGPU': False}
     data = Dataloader(options)
-    data.saveDataset('data/toy64_split_0.8.json', 0.8)
+    print('#old:\n', data)
+
+    # test new dataset
+    options = {'dataset': 'data/who_is_it.json', 'qOutVocab': 3, 'aOutVocab': 4, 'useGPU': False}
+    data = Dataloader(options)
+    print('#new:\n', data)
+    # data.saveDataset('data/toy64_split_0.8.json', 0.8)
