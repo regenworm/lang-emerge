@@ -28,12 +28,14 @@ if len(sys.argv) < 2:
 # load and compute on test
 loadPath = sys.argv[1]
 print('Loading model from: %s' % loadPath)
-loaded = torch.load(loadPath)
+device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+loaded = torch.load(loadPath, map_location=device)
 
 #------------------------------------------------------------------------
 # build dataset, load agents
 #------------------------------------------------------------------------
 params = loaded['params']
+params['useGPU'] = torch.cuda.is_available()
 data = Dataloader(params)
 
 team = Team(params)
@@ -49,50 +51,33 @@ for dtype in dtypes:
     # forward pass
     preds, _, talk = team.forward(Variable(images), Variable(tasks), True)
 
-    # compute accuracy for first, second and both attributes
-    firstMatch = preds[0].data == labels[:, 0].long()
-    secondMatch = preds[1].data == labels[:, 1].long()
-    matches = firstMatch & secondMatch
-    atleastOne = firstMatch | secondMatch
-    # # preds: (task_size x batch) -> predicted values for task
-    # # guess_dist: (task_size x batch x 26?) -> ????
-    # # talk: (num_agents * rounds x batch) -> Messages sent between agents
-    # preds, guess_dist, talk = team.forward(Variable(images), Variable(tasks), True)
-    # if VERBOSE:
-    #     print('#1, preds:', preds.size())
-    #     print('#1, idk:', len(guess_dist), guess_dist[0].size())
-    #     print('#1, talk:', len(talk), talk[0].size())
+    # compute accuracy for color, shape, and both
+    # match_iter: (task_size x batch)
+    match_iter = []
+    for current_task in range(preds.size(0)):
+        m = preds[current_task].data == labels[:, current_task]
+        match_iter.append(m)
+    # perfect_matches: (batch)
+    perfect_matches = [match_iter[idx] & match_iter[idx+1] for idx in range(len(match_iter)-1)]
 
-    # # compute accuracy for first, second and both attributes
-    # # iterate over task_size dim and compare preds with labels
-    # # matches: (task_size x batch)
-    # matches = preds.data == labels.T.long()
-    # total_correct = matches.sum()
-
-    # # evaluate accuracy, and number of rows correct 
-    # # (i.e. correct for all attributes in a single image)
-    # task_sizes = torch.Tensor([len(data.taskSelect[tasks[batch_idx]]) for batch_idx in range(batch_size)]).int()
-    # total_accuracy = total_correct / (task_size * batch_size)
-    # rows_correct = sum([matches[:task_sizes[batch_idx], batch_idx].sum() == task_sizes[batch_idx] for batch_idx in range(matches.size(1))])
-    # if VERBOSE:
-    #     print('#2, len task_sizes:', len(task_sizes))
-    #     print('#2, matches:', matches.size())
-    #     print('#2, total_accuracy:', total_accuracy)
-    #     print('#2, rows_correct:', rows_correct)
-
-
-    # # firstMatch = preds[0].data == labels[:, 0].long()
-    # # secondMatch = preds[1].data == labels[:, 1].long()
-    # # matches = firstMatch & secondMatch
-    # # atleastOne = firstMatch | secondMatch
+    if VERBOSE:
+        # check if results are same as method used for hardcoded 2 tasks
+        firstMatch = preds[0].data == labels[:, 0].long()
+        secondMatch = preds[1].data == labels[:, 1].long()
+        same = ((firstMatch & secondMatch) == perfect_matches[0]).all()
+        if not same:
+            print('NOT SAME!', same)
 
     # compute accuracy
-    firstAcc = 100 * torch.mean(firstMatch.float())
-    secondAcc = 100 * torch.mean(secondMatch.float())
-    atleastAcc = 100 * torch.mean(atleastOne.float())
-    accuracy = 100 * torch.mean(matches.float())
-    print('\nOverall accuracy [%s]: %.2f (f: %.2f s: %.2f, atleast: %.2f)'\
-                    % (dtype, accuracy, firstAcc, secondAcc, atleastAcc))
+    total_accuracy = 100*torch.sum(perfect_matches[-1])\
+        / float(perfect_matches[-1].size(0))
+
+    # sum over task dimension, and take mean over batch
+    # task_size * batch_size
+    total_num_attrs = preds.size(0) * preds.size(1)
+    attr_accuracy = (sum(match_iter).float().sum() / total_num_attrs) *100
+    print('\nPer attribute accuracy: ', [(torch.mean(attr.float())*100).item() for attr in match_iter])
+    print(f'\nTotal accuracy: {total_accuracy}, Attribute Accuracy: {attr_accuracy}')
 
     # pretty print
     talk = data.reformatTalk(talk, preds, images, tasks, labels)
