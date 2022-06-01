@@ -4,7 +4,6 @@ import random
 from sklearn.model_selection import train_test_split
 
 out = {}
-n_combis=800
 out["attributes"] = ["Sex", "Glasses", "Haircolour", "Nose", "Mouth", "Eyecolour", "Facial Hair", "Hat", "Bald"]
 out["props"] = {"Sex": ["Male", "Female"], "Glasses": ["Yes", "No"], "Haircolour": ["Brown", "Blond", "Black", "Red", "Gray"],
                 "Nose": ["Big", "Small", "Regular"], "Mouth": ["Big", "Small", "Regular"], "Eyecolour": ["Blue", "Green", "Brown"],
@@ -13,11 +12,8 @@ property_list = out["props"].values()
 combis = list(itertools.product(*property_list))
 combinations = []
 for combi in combis:
-    if combi[0] == "Female" and combi[6] != "None":
-        continue
-    else:
-        combinations.append(list(combi))
-combinations = random.sample(combinations, n_combis)
+    combinations.append(list(combi))
+n_combis = len(combinations)
 train, test = train_test_split(combinations, test_size=0.1)
 train_combis = int(n_combis*0.9)
 test_combis = n_combis - train_combis
