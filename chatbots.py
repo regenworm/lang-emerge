@@ -142,7 +142,14 @@ class Questioner(ChatBot):
 
         # always condition on task
         #self.rnn = nn.LSTMCell(2*self.embedSize, self.hiddenSize)
-        self.rnn = nn.LSTMCell(self.embedSize, self.hiddenSize)
+        numAttrs = sum([len(ii) for ii in self.props.values()])
+        self.imgNet = nn.Embedding(numAttrs, self.imgFeatSize)
+
+        # rnn inputSize
+        numUniqAttr = len(self.props)
+        rnnInputSize = numUniqAttr * self.imgFeatSize + self.embedSize
+        self.rnn = nn.LSTMCell(rnnInputSize, self.hiddenSize)
+        # self.rnn = nn.LSTMCell(self.embedSize, self.hiddenSize)
 
         # additional prediction network
         # start token included
@@ -191,6 +198,16 @@ class Questioner(ChatBot):
 
     # Embedding the task
     def embedTask(self, tasks): return self.inNet(tasks + self.taskOffset)
+    
+    # Embedding the image
+    def embedImage(self, batch):
+        embeds = self.imgNet(batch)
+        # concat instead of add
+        features = embeds.view(embeds.shape[0], -1)
+        # features = torch.cat(embeds.transpose(0, 1), 1)
+        # add features
+        #features = torch.sum(embeds, 1).squeeze(1)
+        return features
 
 #---------------------------------------------------------------------------
 class Team:
@@ -234,19 +251,25 @@ class Team:
         # get image representation
         imgEmbed = self.aBot.embedImage(batch)
 
+        # give Q-bot the board
+        idxs = torch.randperm(batch.size(0))
+        board = batch[idxs]
+        img_embed_q = self.qBot.embedImage(board)
+
         # ask multiple rounds of questions
         aBotReply = tasks + self.qBot.taskOffset
         # if the conversation is to be recorded
         talk = []
         for roundId in range(self.numRounds):
             # listen to answer, ask q_r, and listen to q_r as well
-            self.qBot.listen(aBotReply)
+            self.qBot.listen(aBotReply, img_embed_q)
             qBotQues = self.qBot.speak()
 
             # clone
             qBotQues = qBotQues.detach()
+
             # make this random
-            self.qBot.listen(self.qBot.listenOffset + qBotQues)
+            self.qBot.listen(self.qBot.listenOffset + qBotQues, img_embed_q)
 
             # Aer is memoryless, forget
             if not self.remember:
@@ -261,7 +284,7 @@ class Team:
                 talk.extend([qBotQues, aBotReply])
 
         # listen to the last answer
-        self.qBot.listen(aBotReply)
+        self.qBot.listen(aBotReply, img_embed_q)
 
         # predict the image attributes, compute reward
         # # get max task size, and predict for all batch examples

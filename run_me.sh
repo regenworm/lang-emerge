@@ -1,5 +1,5 @@
-# DATA_PATH='data/toy64_split_0.8.json'
-DATA_PATH='data/who_is_it.json'
+DATA_PATH='data/toy64_split_0.8.json'
+# DATA_PATH='data/who_is_it.json'
 VISIBLE_CUDA_DEVICES=0
 
 # # Train the agents.
@@ -10,7 +10,7 @@ VISIBLE_CUDA_DEVICES=0
 
 
 # baseline
-python train.py -learningRate 0.01 -hiddenSize 128 -batchSize 16 \
+python train.py -learningRate 0.01 -hiddenSize 128 -batchSize 64 \
                 -imgFeatSize 16 -embedSize 16 -numEpochs 25000\
                 -dataset $DATA_PATH\
                 -aOutVocab 2 -qOutVocab 17 -numRounds 17
