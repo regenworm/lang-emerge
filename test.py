@@ -80,6 +80,13 @@ for dtype in dtypes:
     print(f'\nTotal accuracy: {total_accuracy}, Attribute Accuracy: {attr_accuracy}')
 
     # pretty print
+    # talk: (batch) -> { 
+    #   image: (num_attr), 
+    #   gt: (task_len), 
+    #   task: (num_tasks), 
+    #   pred: (num_tasks), 
+    #   chat: (num_rounds * num_agents) 
+    # }
     talk = data.reformatTalk(talk, preds, images, tasks, labels)
     if 'final' in loadPath:
         savePath = loadPath.replace('final', 'chatlog-'+dtype)
