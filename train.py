@@ -153,7 +153,8 @@ for iterId in range(params['numEpochs'] * numIterPerEpoch):
         continue
 
     time = strftime("%a, %d %b %Y %X", gmtime())
-    log = {
+    if useWandB:
+        wandb.log({
         'time': time,
         'iter': iterId,
         'epoch': epoch,
@@ -162,11 +163,9 @@ for iterId in range(params['numEpochs'] * numIterPerEpoch):
         'testAccuracy': accuracy['test'],
         'trainAttrAccuracy': accuracy['attr_train'],
         'testAttrAccuracy': accuracy['attr_test'],
-        'testAttrAccuracyPerTask': accuracy['test_pertask'],
-        'trainAttrAccuracyPerTask': accuracy['train_pertask'],
-    }
-    if useWandB:
-        wandb.log(log)
+        'testAttrAccuracyPerTask': wandb.Histogram(accuracy['test_pertask']),
+        'trainAttrAccuracyPerTask': wandb.Histogram(accuracy['train_pertask']),
+    })
     print('[%s][Iter: %d][Ep: %.2f][R: %.4f][Tr: %.2f Te: %.2f][AttrTr: %.2f AttrTe: %.2f]' %
           (time, iterId, epoch, team.totalReward,
            accuracy['train'], accuracy['test'],
