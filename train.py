@@ -136,7 +136,7 @@ for iterId in range(params['numEpochs'] * numIterPerEpoch):
         # sum match iter over batch size
         accuracy[dtype+ '_pertask'] = match_iter.float().mean(1) * 100
 
-        if useWandB & (dtype == task) & (iterId % 1000 == 0):
+        if useWandB & (dtype == task) & (iterId % 100 == 0):
             artifact_predictions.add(guess, iterId)
             artifact_talks.add(talk, iterId)
             artifact_gt.add(labels, iterId)
@@ -163,8 +163,8 @@ for iterId in range(params['numEpochs'] * numIterPerEpoch):
         'testAccuracy': accuracy['test'],
         'trainAttrAccuracy': accuracy['attr_train'],
         'testAttrAccuracy': accuracy['attr_test'],
-        'testAttrAccuracyPerTask': wandb.Histogram(accuracy['test_pertask']),
-        'trainAttrAccuracyPerTask': wandb.Histogram(accuracy['train_pertask']),
+        'testAccuracyPerAttr': wandb.Histogram(accuracy['test_pertask'].cpu()),
+        'trainAccuracyPerAttr': wandb.Histogram(accuracy['train_pertask'].cpu()),
     })
     print('[%s][Iter: %d][Ep: %.2f][R: %.4f][Tr: %.2f Te: %.2f][AttrTr: %.2f AttrTe: %.2f]' %
           (time, iterId, epoch, team.totalReward,
