@@ -6,7 +6,7 @@ import torch
 import functools
 import itertools, pdb, json, random
 
-VERBOSE=False
+VERBOSE=True
 
 class Dataloader:
 
@@ -21,14 +21,25 @@ class Dataloader:
             print('Creating empty dataloader!')
             return
 
+        # load symbolic json and set to dataloader class props
+        # { 
+        #   attributes: image attributes that can be predicted (e.g. nose, face, etc), 
+        #   taskDefn: list of attributes to be predicted 
+        #             (attribute is indicated as index in attributes list), 
+        #   numInst: size of each split, 
+        #   split: actual data splits, 
+        #   props: possible attribute values for each attribute
+        # }
         self.loadDataset(params['dataset'])
+
         ####################### Create attributes #########################
         numVals = {attr:len(vals) for attr, vals in self.props.items()}
 
-        # all possible attribute values
-        # i.e. for a face, vocab would be all possible facial features
+        # for each attribute, put all possible values into a single list
         self.attrValVocab = functools.reduce(lambda x, y: x + y,
             [self.props[ii] for ii in self.attributes])
+        
+        # number of tasks
         self.numTasks = len(self.taskDefn)
         if VERBOSE:
             print('#0.1, numTasks', self.numTasks)
@@ -36,19 +47,21 @@ class Dataloader:
 
         # input vocab for answerer
         # inVocab and outVocab same for questioner
-        taskVocab = ['<T%d>' % ii for ii in range(self.numTasks)]
-        
+        taskVocab = ['<T%d>' % ii for ii in range(self.numTasks)]        
         if VERBOSE:
             print('#1, taskVocab:', taskVocab)
+
         # A, Q have different vocabs
         # from a to a + qOutVocab (in terms of chars)
         qOutVocab = [chr(ii + 97) for ii in range(params['qOutVocab'])]
         if VERBOSE:
             print('#2, qOutVocab:', qOutVocab)
+
         # from A to A + aOutVocab (in terms of chars)
         aOutVocab = [chr(ii + 65) for ii in range(params['aOutVocab'])]
         if VERBOSE:
             print('#3, aOutVocab:', aOutVocab)
+
         aInVocab =  qOutVocab + aOutVocab
         qInVocab = aOutVocab + qOutVocab + taskVocab
 
@@ -68,6 +81,8 @@ class Dataloader:
         # self.numSingleTasks = 1
 
         # create a vocab map for field values
+        # attrVals == self.attrValVocab
+        # attrVocab is a mapping from attribute values to indices
         attrVals = functools.reduce(lambda x, y: x+y,
                                     [self.props[ii] for ii in self.attributes])
         self.attrVocab = {value: ii for ii, value in enumerate(attrVals)}
@@ -76,6 +91,7 @@ class Dataloader:
             print('#5, attrVals:', attrVals)
 
         # get encoding for attribute pairs
+        # TODO: remove? this is never used
         self.attrPair = itertools.product(attrVals, repeat=2)
         self.attrPairVocab = {value:ii for ii, value in enumerate(self.attrPair)}
         self.invAttrPairVocab = {index:value for value, index \
@@ -84,6 +100,8 @@ class Dataloader:
             print('#6, first 5 attrPairVocab keys and indices:', list(self.attrPairVocab.items())[:5])
 
         # Separate data loading for test/train
+        # data.train/test: contains data in split but each attribute value 
+        #                  is represented by an idx (see attrVocab mapping)
         self.data = {}
         for dtype in ['train', 'test']:
             data = torch.LongTensor(self.numInst[dtype], self.numAttrs)
@@ -171,13 +189,24 @@ class Dataloader:
 
     # get a batch
     def getBatchSpecial(self, batchSize, currentPred, negFraction=0.8):
-        # sample tasks
+        # fn getBatchSpecial:
+        #   tasks, labels are sampled the same way
+        #   however the "images" are sampled based on wrong predictions
+        #   sample tasks
+        # batchSize: (1)
+        # currentPred: (task x batch)
         tasks = torch.LongTensor(batchSize).random_(0, self.numPairTasks)
         # sample a batch
         indices = torch.LongTensor(batchSize).random_(0, self.numInst['train'])
         if self.useGPU: indices = indices.cuda()
         #-------------------------------------------------------------
         # fill the first batchSize/2 based on previously misclassified examples
+        # TODO: does this actually do what it says?
+        # negInds: (batch) -> reshape to (-1, numTasks) and sum over task dim, 
+        #                     if smaller than numTasks row is not perfect
+        # does this make sense? negInds is not necessarily the same size as rangeInds?
+        # Also currentPred is randomly sampled and of size batch_size, and not in the 
+        # same order as rangeInds? Not sure this does what it says
         negInds = currentPred.view(-1, self.numPairTasks).sum(1) < self.numPairTasks
         negInds = self.rangeInds.masked_select(negInds)
         negBatchSize = int(batchSize * negFraction)

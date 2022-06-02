@@ -58,13 +58,13 @@ class ChatBot(nn.Module):
 
     # given an input token, interact for the next round
     def listen(self, inputToken, imgEmbed = None):
-        # embed and pass through LSTM
+        # embed input token
         tokenEmbeds = self.inNet(inputToken)
         # concat with image representation
         if imgEmbed is not None:
             tokenEmbeds = torch.cat((tokenEmbeds, imgEmbed), 1)
 
-        # now pass it through rnn
+        # now pass embedding through rnn
         self.hState, self.cState = self.rnn(tokenEmbeds,
                                             (self.hState, self.cState))
 
@@ -125,6 +125,7 @@ class Answerer(ChatBot):
     def embedImage(self, batch):
         embeds = self.imgNet(batch)
         # concat instead of add
+        # TODO: remove this? what's the use
         features = embeds.view(embeds.shape[0], -1)
         # features = torch.cat(embeds.transpose(0, 1), 1)
         # add features
@@ -186,7 +187,9 @@ class Questioner(ChatBot):
 
         for _ in range(numTokens):
             # explicit task dependence
+            # TODO: How does embedTask work??
             taskEmbeds = self.embedTask(tasks)
+            # TODO: this works same as speaking... but with a different net? Why?
             guess, distr = self.guessAttribute(taskEmbeds)
 
             # record the guess and distribution
@@ -203,6 +206,7 @@ class Questioner(ChatBot):
     def embedImage(self, batch):
         embeds = self.imgNet(batch)
         # concat instead of add
+        # TODO: what is the use of this?????
         features = embeds.view(embeds.shape[0], -1)
         # features = torch.cat(embeds.transpose(0, 1), 1)
         # add features
@@ -252,38 +256,51 @@ class Team:
         imgEmbed = self.aBot.embedImage(batch)
 
         # give Q-bot the board
+        # shuffle batch and embed as guess who board
         idxs = torch.randperm(batch.size(0))
         board = batch[idxs]
         img_embed_q = self.qBot.embedImage(board)
 
         # ask multiple rounds of questions
+        # TODO: what is this taskOffset? and how is this a reply????
         aBotReply = tasks + self.qBot.taskOffset
+
         # if the conversation is to be recorded
         talk = []
         for roundId in range(self.numRounds):
-            # listen to answer, ask q_r, and listen to q_r as well
+            # listen to answer
+            # aBotReply input token is embedded and passed through LSTMCell
+            # hState and cState are updated
             self.qBot.listen(aBotReply, img_embed_q)
+            # generate a new question
+            # pass lstm cell hidden state through output (linear) layer and
+            # softmax. Sample a symbol from this distribution.
             qBotQues = self.qBot.speak()
 
             # clone
             qBotQues = qBotQues.detach()
 
             # make this random
+            # TODO: What does this mean????  what is this listen offset???
             self.qBot.listen(self.qBot.listenOffset + qBotQues, img_embed_q)
 
             # Aer is memoryless, forget
             if not self.remember:
                self.aBot.resetStates(batchSize, True)
             # listen to question and answer, also listen to answer
+            # Works same as for qBot
             self.aBot.listen(qBotQues, imgEmbed)
             aBotReply = self.aBot.speak()
             aBotReply = aBotReply.detach()
+
+            # TODO: Why is it listening to its own reply? What is this offset again?
             self.aBot.listen(aBotReply + self.aBot.listenOffset, imgEmbed)
 
             if record:
                 talk.extend([qBotQues, aBotReply])
 
         # listen to the last answer
+        # TODO: why no offset now?
         self.qBot.listen(aBotReply, img_embed_q)
 
         # predict the image attributes, compute reward
@@ -297,10 +314,12 @@ class Team:
     def backward(self, optimizer, gtLabels, epoch, baseline=None):
         # gtLabels: (batch x task_size)
         # task_sizes: (batch)
-        # compute reward
+        # reward: (batch)
+        # start out with all rewards being negative
         self.reward.fill_(self.rlNegReward)
 
-        # both attributes need to match
+        # for all attributes that needed to be predicted check if correct
+        # match_iter: (task_size x batch)
         match_iter = []
         for current_task in range(self.guessToken.size(0)):
             m = self.guessToken[current_task].data == gtLabels[:, current_task]
@@ -312,14 +331,18 @@ class Team:
         same = ((firstMatch & secondMatch) == perfect_matches[0]).all()
         if not same:
             print('booo!')
+
+        # give positive reward for perfect rows
         self.reward[perfect_matches[-1]] = self.rlScale
 
         # reinforce all actions for qBot, aBot
+        # for each token spoken/predicted, apply reward/penalty
         self.qBot.reinforce(self.reward)
         self.aBot.reinforce(self.reward)
 
         # optimize
         optimizer.zero_grad()
+        # perform backwards on reinforce losses for all actions
         self.qBot.performBackward()
         self.aBot.performBackward()
 
@@ -330,6 +353,7 @@ class Team:
           p.grad.data.clamp_(min=-5., max=5.)
 
         # cummulative reward
+        # TODO: Why divide by rlScale again?
         batchReward = torch.mean(self.reward)/self.rlScale
         if self.totalReward == None: self.totalReward = batchReward
         self.totalReward = 0.95 * self.totalReward + 0.05 * batchReward
@@ -347,6 +371,10 @@ class Team:
             agent = getattr(self, agentName)
             for module in modules:
                 if hasattr(agent, module):
+                    print()
+                    if not module in savedModel[agentName].keys(): 
+                        print(f"Could not find {agentName}'s {module} module in savedmodels")
+                        continue
                     if dictSaved: savedModule = savedModel[agentName][module]
                     else: savedModule = getattr(savedModel[agentName], module)
                     # assign to current model

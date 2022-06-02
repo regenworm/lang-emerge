@@ -25,7 +25,7 @@ options = options.read()
 # ------------------------------------------------------------------------
 data = Dataloader(options)
 numInst = data.getInstCount()
-useWandB = True
+useWandB = False
 VERBOSE = True
 if useWandB:
     wandb.init(project="lang-emerge", entity="nlp-2-a", tags=['train', 'baseline', 'test_variable_task'])
@@ -69,12 +69,15 @@ for iterId in range(params['numEpochs'] * numIterPerEpoch):
         batchImg, batchTask, batchLabels \
             = data.getBatch(params['batchSize'])
     else:
+        # get negFraction*batch_size amount of batch to be images that were previously
+        # predicted wrong.
         batchImg, batchTask, batchLabels \
             = data.getBatchSpecial(params['batchSize'], matches['train'],
                                    params['negFraction'])
 
     # forward pass
     team.forward(Variable(batchImg), Variable(batchTask))
+
     # backward pass
     batchReward = team.backward(optimizer, batchLabels, epoch)
 
