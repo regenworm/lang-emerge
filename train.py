@@ -25,10 +25,13 @@ options = options.read()
 # ------------------------------------------------------------------------
 data = Dataloader(options)
 numInst = data.getInstCount()
-useWandB = False
+useWandB = True
 VERBOSE = True
 if useWandB:
     wandb.init(project="lang-emerge", entity="nlp-2-a", tags=['train', 'baseline', 'test_variable_task'])
+    artifact_predictions = wandb.Artifact('predictions', type='results')
+    artifact_talks = wandb.Artifact('talks', type='results')
+    artifact_gt = wandb.Artifact('gt', type='results')
 
 params = data.params
 # append options from options to params
@@ -129,6 +132,14 @@ for iterId in range(params['numEpochs'] * numIterPerEpoch):
         # task_size * batch_size
         total_num_attrs = guess.size(0) * guess.size(1)
         accuracy['attr_' + dtype] = (sum(match_iter).float().sum() / total_num_attrs) *100
+        match_iter = torch.stack(match_iter) 
+        # sum match iter over batch size
+        accuracy[dtype+ '_pertask'] = match_iter.float().mean(1) * 100
+
+        if useWandB & (dtype == task) & (iterId % 1000 == 0):
+            artifact_predictions.add(guess, iterId)
+            artifact_talks.add(talk, iterId)
+            artifact_gt.add(labels, iterId)
 
     # switch to train
     team.train()
@@ -142,17 +153,20 @@ for iterId in range(params['numEpochs'] * numIterPerEpoch):
         continue
 
     time = strftime("%a, %d %b %Y %X", gmtime())
+    log = {
+        'time': time,
+        'iter': iterId,
+        'epoch': epoch,
+        'totalReward': team.totalReward,
+        'trainAccuracy': accuracy['train'],
+        'testAccuracy': accuracy['test'],
+        'trainAttrAccuracy': accuracy['attr_train'],
+        'testAttrAccuracy': accuracy['attr_test'],
+        'testAttrAccuracyPerTask': accuracy['test_pertask'],
+        'trainAttrAccuracyPerTask': accuracy['train_pertask'],
+    }
     if useWandB:
-        wandb.log({
-            'time': time,
-            'iter': iterId,
-            'epoch': epoch,
-            'totalReward': team.totalReward,
-            'trainAccuracy': accuracy['train'],
-            'testAccuracy': accuracy['test'],
-            'trainAttrAccuracy': accuracy['attr_train'],
-            'testAttrAccuracy': accuracy['attr_test']
-        })
+        wandb.log(log)
     print('[%s][Iter: %d][Ep: %.2f][R: %.4f][Tr: %.2f Te: %.2f][AttrTr: %.2f AttrTe: %.2f]' %
           (time, iterId, epoch, team.totalReward,
            accuracy['train'], accuracy['test'],
