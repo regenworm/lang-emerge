@@ -83,8 +83,11 @@ class Dataloader:
         # create a vocab map for field values
         # attrVals == self.attrValVocab
         # attrVocab is a mapping from attribute values to indices
-        attrVals = functools.reduce(lambda x, y: x+y,
-                                    [self.props[ii] for ii in self.attributes])
+        # attrVals = functools.reduce(lambda x, y: x+y,
+        #                             [self.props[ii] for ii in self.attributes])
+        attrVals = []
+        for attr in self.attributes:
+            attrVals = attrVals + [attr + "_" + prop for prop in self.props[attr]]
         self.attrVocab = {value: ii for ii, value in enumerate(attrVals)}
         self.invAttrVocab = {index: attr for attr, index in self.attrVocab.items()}
         if VERBOSE:
@@ -105,8 +108,8 @@ class Dataloader:
         self.data = {}
         for dtype in ['train', 'test']:
             data = torch.LongTensor(self.numInst[dtype], self.numAttrs)
-            for ii, attrSet in enumerate(self.split[dtype]):
-                data[ii] = torch.LongTensor([self.attrVocab[at] for at in attrSet])
+            for i, attrSet in enumerate(self.split[dtype]):
+                data[i] = torch.LongTensor([self.attrVocab[self.attributes[j] + "_" + at] for j, at in enumerate(attrSet)])
             self.data[dtype] = data
 
         self.rangeInds = torch.arange(0, self.numInst['train']).long()
