@@ -39,6 +39,8 @@ def read():
     parser.add_argument('-learningRate', default=1e-3, type=float,\
                             help='Initial learning rate')
     parser.add_argument('-useGPU', dest='useGPU', action='store_true')
+    parser.add_argument('-r', default="", type=str,\
+                            help='WandB run name')
 
     try:
       parsed = vars(parser.parse_args())

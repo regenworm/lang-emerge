@@ -11,7 +11,7 @@ import pdb
 import random
 import os
 import numpy as np
-from chatbots import Team
+from chatbots_noboard import Team
 from dataloader import Dataloader
 import options
 from time import gmtime, strftime
